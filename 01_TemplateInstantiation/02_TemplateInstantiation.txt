@@ -1,0 +1,89 @@
+------------------------------------------------------------------
+00 : Template이 생성한 코드
+------------------------------------------------------------------
+
+template<tepyname T>
+T square(T a)
+{
+    return a*a;
+}
+
+int main()
+{
+    square(3);
+    square(3.3);
+}
+
+template으로 생성된 코드 확인하는 방법
+
+어셈블리 컴파일
+g++ file.cpp -S
+cl file.cpp /FAs
+
+PUBLIC	_main
+PUBLIC	??$square@H@@YAHH@Z				; square<int>
+PUBLIC	??$square@N@@YANN@Z				; square<double>
+
+------------------------------------------------------------------
+
+중간언어로 컴파일된 코드 확인
+
+g++ -fdump-tree-original file.cpp
+clang++ -Xclang -ast-print -fsyntax-only file.cpp
+
+------------------------------------------------------------------
+01 : Template이 생성한 코드 2
+------------------------------------------------------------------
+
+템플릿 코드를 실제 c++ 코드로 생성하는 것을 "템플릿 인스턴스화" 라고 표현한다.
+템플릿 인스턴스 화에는 명시적인 방법과 암시적인 방법이 있다.
+------------------------------------------------------------------
+명시적인 방법은 
+template<typename T> class Test
+{
+public:
+    void foo() {}
+    void goo() {}
+}
+// 아래 처럼 명령하면 Test클래스를 사용하지 않아도 int형 Test클래스가 만들어진다.
+template class Test<int>;
+// 아래 처럼 명령하면 Test클래스의 foo함수만 인스턴스화 한다.
+template class Test<int>::foo();
+
+template<tepyname T> T square(T a)
+{
+    return a*a;
+}
+
+// 아래 처럼 명령하면 square함수를 사용하지 않아도 int형 square함수가 만들어진다.
+template int square<int>(int); // or template int square<>(int); // or template int square(int);
+------------------------------------------------------------------
+암시적인 방법은 
+template<typename T> class Test
+{
+public:
+    void foo() {}
+    void goo() {}
+}
+
+template<tepyname T> T square(T a)
+{
+    return a*a;
+}
+
+int main()
+{
+    // 아래 처럼 사용을 하면 컴파일러에 의해 암시적으로 인스턴스화 된다.
+    int n = square(3);
+    
+    // 명확히 인스턴스화
+    int n = square<int>(3);
+    
+    // 클래스템플릿은 명확히 <int>를 넣어주어야한다.
+    // 단, c++17부터는 <int>를 명시하지 않아도 생성자를 통해 암시적변환이 가능하다.
+    Test<int> t1;
+    
+    // foo만 인스턴스화 한다. goo는 인스턴스화 하지 않는다.
+    t1.foo();
+}
+------------------------------------------------------------------
