@@ -73,7 +73,7 @@ template<tepyname T> T square(T a)
 
 int main()
 {
-    // 아래 처럼 사용을 하면 컴파일러에 의해 암시적으로 인스턴스화 된다.
+    // 아래 처럼 사용을 하면 컴파일러에 의해 암시적으로 int형으로 인스턴스화 된다.
     int n = square(3);
     
     // 명확히 인스턴스화
@@ -86,4 +86,213 @@ int main()
     // foo만 인스턴스화 한다. goo는 인스턴스화 하지 않는다.
     t1.foo();
 }
+
+결과
+PUBLIC	_main
+PUBLIC	??$square@H@@YAHH@Z				; square<int>
+PUBLIC	?foo@?$Test@H@@QAEXXZ			; Test<int>::foo
+
+------------------------------------------------------------------
+02 : Class Template type deduction(타입추론)
+------------------------------------------------------------------
+1. 사용자가 템플릿 인자를 명시적으로 지정하지 않는 경우 컴파일러가 인자를 보고 추론
+2. 타입 추론 룰은 type deduction rule 동영상 참고
+3. 클래스 템플릿의 경우 C++17 부터 2가지 방법으로 타입추론을 한다.
+    - 생성자의 인자를 통한 추론
+    - 사용자가 작성한 class template type deduction guide를 통해 추론
+------------------------------------------------------------------
+사용자가 작성한 class template type deduction guide를 통해 추론
+template<typename T> class Vector
+{
+    T* buff;
+public:
+    Vector() {}
+    Vector(int sz, T initValue) {}
+};
+
+// user define deduction guide
+Vector()->Vector<int>;
+
+int main()
+{
+    Vector<int> v1(10, 3);
+    Vector      v2(10, 3);  // C++ 17 부터 컴파일 가능
+    
+    // error C2641: 'Vector'의 템플릿 인수를 추론할 수 없습니다.
+    // error C2783: 'Vector<T> Vector(void)': 'T'의 템플릿 인수를 추론할  수 없습니다.
+    // error C2780: 'Vector<T> Vector(int,T)': 인수가 2개 있어야 하는데 0 개를 사용했습니다.
+    // error C2512: 'Vector': 사용할 수 있는 적절한 기본 생성자가 없습니다.
+    // ==> user define deduction guide
+    /*
+        Vector()->Vector<int>
+    */
+    Vector      v3;
+}
+
+------------------------------------------------------------------
+#include <list>
+using namespace std;
+
+int main()
+{
+    // list<int> s = {1,2,3};
+    list      s = {1,2,3};      // c++ 17 style...
+}
+
+------------------------------------------------------------------
+#include <list>
+using namespace std;
+
+template<typename T> class Vector
+{
+    T* buff;
+public:
+    Vector() {}
+    Vector(int sz, T initValue) {}
+    template<typename C> Vector(C& c) {}
+};
+
+// user define deduction guide
+Vector()->Vector<int>;
+
+// C의 value_type 즉, C는 list<int> 형이니깐 T = int
+template<typename C> Vector(C& c)->Vector<typename C::value_type>;
+
+int main()
+{
+    // c++ 17 style
+    list      s = {1,2,3};
+    
+    // template<typename C> Vector(C& c) {} 생성자를 사용, 단, T에 대한 타입추론이 없음, 해서 추론 가이드를 작성해야 함.
+    Vector    v1(s);
+}
+
+------------------------------------------------------------------
+03 : Template instantiation technic
+------------------------------------------------------------------
+- C++ 17이 나오기 전 클래스 템플릿은 명시적으로 사용했어야했다.
+
+    template<typename T> void foo(T a) {}
+    template<typename T, typename U> struct pair
+    {
+        T first;
+        U second;
+        pair(const T& a, const U& b) : first(a), second(b) {}
+    };
+
+    int main()
+    {
+        pair<int, double> p1(1, 2.2);
+        foo(p1);
+        
+        foo(pair<int, double>(2, 3.3));
+    }
+
+    => 테크닉 : (오브젝트 제너레이터) 그때는 아래와 같은 방법으로 함수 템플릿을 이용할 수 있다.
+    
+    template<T, U> pair<T, U> make_pair(const T& a, const U& b)
+    {
+        return pair<T, U>(a, b);
+    }
+    
+    ex) tuple<int, double, int>(1, 3.1, 1) ---C++ 표준---> make_tuple(1, 3.1, 1)
+    
+------------------------------------------------------------------
+- 컴파일러에 의한 함수템플릿의 타입추론을 막기 위한 방법
+
+    template<typename T> struct identity
+    {
+        typedef T type;
+    };
+
+    template<typename T> void foo(T a) {}
+    template<typename T> void goo(typename identity<T>::type a) {}
+
+    int main()
+    {
+        identity<int>::type n; // int n;
+        
+        foo(3);         // ok
+        foo<int>(3);    // ok
+        
+        goo(3);         // error
+        goo<int>(3);    // ok
+    }
+    
+------------------------------------------------------------------
+04 : Template instantiation 주의사항
+------------------------------------------------------------------
+- 템플릿함수의 함수포인터
+template<typename T> T square(T a)
+{
+    return a * a;
+}
+
+int main()
+{
+    printf("%p\n", &square);                           // error,,, square는 함수템플릿 틀이지 함수가 아니다.
+    printf("%p\n", &square<int>);                      // ok
+    printf("%p\n", static_cast<int(*)(int)>(&square)); // ok,,, 컴파일러가 타입추론을 할 수 있다.
+    
+    Equal
+    
+    auto p1 = &square;                                 // error
+    auto p2 = &square<int>;                            // ok
+    auto p3 = static_cast<int(*)(int)>(&square);       // ok
+}
+------------------------------------------------------------------
+- 다중 파일(cpp // h)
+// 템플릿 클래스의 선언부와 정의부를 나누어 처리 할 수 없는 이유..
+/*
+	일반 함수는 컴파일시에 원형만 선언하면 컴파일 가능하고, 링크할 때 바인딩되는데 비해
+	컴파일러시 프로젝트 내에서 템플릿을 호출하는 모든타입에 대한 함수를 오버로딩하여 미리 만들어놓는 템플릿은
+	컴파일할 때 완벽하게 구체화되어야 한다.
+
+	즉, 컴파일시 구체화 되어야하는 템플릿을 참조하는 다른 모듈에 있는 함수에서는 
+	헤더파일만 포함시키기 때문에 템플릿 클래스의 멤버함수가 정의되지 않은 것으로 인식되어 에러로 처리된다.
+	다시 말해 템플릿을 사용하는 *.cpp와 같은 번역 단위안에 템플릿이 정의되 있어야 한다. 
+
+	그렇다면, 클래스 템플릿은 헤더파일에 정의부를 같이 두어야하는데.. 이렇게하면
+
+	헤더 파일에 클래스 템플릿을 두게 되면 최종 사용자에게 이 클래스의 코드를 숨길 수 없다는 단점이 있다.
+	기술적으로 중요한 사항을 담고 있는 클래스의 소스가 누출될 수 있는 보안상의 문제가 있는 것이다.
+	그래서 최신 C++ 표준은 cpp 파일에 클래스 템플릿의 멤버 함수를 정의할 수 있는 export 키워드를 도입하고
+	이 키워드를 사용하면 구현 파일에 정의된 멤버 함수가 외부로도 알려지도록 한다.
+	템플릿 선언앞에 export를 붙이면 된다.
+
+	그러나 이 키워드는 몇몇 시험적인 컴파일러들만 지원하고 있을 뿐이며 비주얼 C++, gcc를 포함한
+	대부분의 컴파일러에서 아직 지원하지 않는다. 표준으로 채택되었음에도 불구하고 지원하지 못하는 컴파일러가
+	많은 이유는 이 키워드가 전통적인 모듈 분할 방식의 컴파일러와는 잘 맞지 않기 때문이다.
+	C/C++ 컴파일러는 번역 단위별로 컴파일하여 링크할 때 합치는 방식을 사용하는데
+	export로 지정된 함수에 대해서는 모든 번역 단위에 대해서도 그 정의를 알려야 하므로 근본적인 컴파일 방식을
+	바꾸기 전에는 지원하기가 대단히 어렵다. 안타깝게도 이 키워드는 당분간은 쓸 수 없으며
+	그래서 템플릿 라이브러리들은 거의 대부분 소스가 공개되어 있다.
+*/
+
+-- header
+int add(int a, int b);
+template<typename T> T square(T a);
+
+-- implatement
+int add(int a, int b)
+{
+    return a + b;
+}
+
+template<typename T> T square(T a)
+{
+    return a * a;
+}
+
+-- main
+#include "header"
+
+int main()
+{
+    add(1, 2);  // ok
+    square(3);  // error,,, 템플릿은 틀이기 때문에 선언부만 있는 header만 참조해서는 틀의 모양을 알 수가 없다.
+                // 1. header에 틀을 넣는 방법
+                // 2. export를 이용하는 방법
+}
+
 ------------------------------------------------------------------
