@@ -1,0 +1,224 @@
+------------------------------------------------------------------
+00 : boost::type_index
+------------------------------------------------------------------
+- 타입을 조사하는 방법
+
+#include <iostream>
+#include <boost\type_index.hpp>
+using namespace std;
+using namespace boost::typeindex;
+
+template<typename T> void foo(const T a)
+{
+    // const 가 정확히 조사되지 않는다.
+    cout << "standard T : " << typeid(T).name() << endl;
+    cout << "standard a : " << typeid(a).name() << endl;
+    
+    // boost::type_index를 활용하면 정확한 타입을 조사할 수 있다.
+    cout << "boost T : " << type_id_with_cvr<T>().pretty_name() << endl;
+    cout << "boost a : " << type_id_with_cvr<decltype(a)>().pretty_name() << endl;
+}
+
+int main()
+{
+    foo(3);     // T : int, a : const int
+    foo(3.3);   // T : double, a : const double
+}
+
+------------------------------------------------------------------
+01 : template type deduction
+------------------------------------------------------------------
+- const 혹은 reference와 같은 부가적인 옵션은 추론하지 않는다.
+- 타입추론 규칙
+    1. 템플릿 인자가 값(value) 타입일때
+       함수 인자가 가진 const, volatile, reference 속성을 제거하고 T 의 타입을 결정한다.
+       (volatile : https://skyul.tistory.com/337)
+       (주의! - 인자가 가진 속성만 제거 된다. point일 경우 point 변수 자체 속성만 제거)
+       
+    2. 템플릿 인자가 참조(reference) 타입일때
+        함수 인자가 가진 reference 속성만 제거되고 T의 타입을 결정한다.
+        (volatile, const는 유지 됨.)
+    --> 다시 정리하면 템플릿 인자가 가진 속성을 제거되고, T의 타입을 결정한다.
+    
+- 템플릿 인자가 값(value) 타입일때
+template<typename T> void foo(T a)
+{
+    cout << type_id_with_cvr<T>().pretty_name() << endl;
+}
+
+int main()
+{
+    int n = 0;
+    int& r = n;
+    const int c = n;
+    const int& cr = c;
+    
+    // T의 타입추론결과 const, volatile, reference 속성이 제거된다.
+    foo(n); // int          -> T : int
+    foo(r); // int&         -> T : int
+    foo(c); // const int    -> T : int
+    foo(cr); // const int&  -> T : int
+    
+    const char* s1 = "hello";       // s1의 value가 const            --> T : const char*
+    foo(s1);
+    
+    const char* const s2 = "hello"; // s2도 const이고, value도 const  --> T : const char*
+    foo(s2);
+}
+
+------------------------------------------------------------------
+- 템플릿 인자가 참조(reference) 타입일때
+template<typename T> void foo(T& a)
+{
+    cout << type_id_with_cvr<T>().pretty_name() << endl;
+}
+
+int main()
+{
+    int n = 0;
+    int& r = n;
+    const int c = n;
+    const int& cr = c;
+    
+    // T의 타입추론결과 reference 속성이 제거된다.
+    foo(n); // int          -> T : int, a : int&
+    foo(r); // int&         -> T : int, a : int&
+    foo(c); // const int    -> T : const int, a : const int&
+    foo(cr); // const int&  -> T : const int, a : const int&
+}
+
+------------------------------------------------------------------
+- 템플릿 인자가 const 참조(reference) 타입일때
+template<typename T> void foo(const T& a)
+{
+    cout << type_id_with_cvr<T>().pretty_name() << endl;
+}
+
+int main()
+{
+    int n = 0;
+    int& r = n;
+    const int c = n;
+    const int& cr = c;
+    
+    // T의 타입추론결과 const, reference 속성이 제거된다.
+    foo(n); // int          -> T : int, a : const int&
+    foo(r); // int&         -> T : int, a : const int&
+    foo(c); // const int    -> T : int, a : const int&
+    foo(cr); // const int&  -> T : int, a : const int&
+}
+------------------------------------------------------------------
+정리
+
+template<typename T> void foo(T a)
+인자가 가진 const, volatile, reference 속성이 제거된다.
+
+template<typename T> void foo(T& a)
+인자가 가진 reference 속성만 제거된다.
+
+template<typename T> void foo(const T& a)
+인자가 가진 const, reference 속성만 제거된다.
+
+template<typename T> void foo(T&& a)
+인자가 가진 forwarding reference만 제거된다.
+
+------------------------------------------------------------------
+02 : array name
+------------------------------------------------------------------
+- 배열변수 이름의 의미
+
+int main()
+{
+    int n;
+    int *p1 = &n;
+    
+    double d;
+    double *p2 = &d;
+    
+    int x[3] = { 1, 2, 3 };
+    int *p3 = x;        // 배열의 첫번째 요소의 주소
+    int (*p4)[3] = &x;  // 배열의 주소
+}
+------------------------------------------------------------------
+- 배열의 값 복사
+
+int main()
+{
+    int n1;
+    int n2 = n1;
+    
+    double d1;
+    double d2 = d1;
+    
+    int x1[3] = { 1, 2, 3 };
+    int x2[3] = ??
+    // 내가 알고 있는걸로는.. 
+    memcopy(x2, x1, x1.length);
+}
+------------------------------------------------------------------
+- 배열의 주소와 배열의 요소의 주소
+
+int main()
+{
+    int x[3] = {1, 2, 3};
+    
+    int *p1 = x;
+    int (*p2)[3] = &x;
+    
+    &(*p1)   배열의 첫번째 요소의 주소
+    &(*p2)   배열의 주소
+    
+    p1 + 1 == &x[1] // 4byte 증가
+    p2 + 1 == &x[4] // 12byte 증가
+    
+    *p1 = 10;
+    (*p2)[0] = 10;
+}
+
+------------------------------------------------------------------
+03 : Argument decay
+------------------------------------------------------------------
+- 배열을 템플릿으로 전달할때의 현상
+    call by value 일경우 point로 추론
+    call by reference 일경우 array reference로 추론
+    
+template<typename T> void foo(T a)
+{
+    cout << type_id_with_cvr<T>().pretty_name() << endl;
+    cout << type_id_with_cvr<decltype(a)>().pretty_name() << endl;
+}
+
+template<typename T> void goo(T& a)
+{
+    cout << type_id_with_cvr<T>().pretty_name() << endl;
+    cout << type_id_with_cvr<decltype(a)>().pretty_name() << endl;
+}
+
+int main()
+{
+    int x[3] = {1, 2, 3};
+    
+    foo(x); // T : int*
+    goo(x); // T : int (&)[]
+    
+    int *p = x;
+    int (&r)[3] = x;
+}
+------------------------------------------------------------------
+- 주의사항
+
+template<typename T> void foo(T a, T b)
+{
+}
+
+template<typename T> void goo(T& a, T& b)
+{
+}
+
+int main()
+{
+    foo("orange", "apple"); // ok,    T : char*
+    goo("orange", "apple"); // error, T : char (&) [] 일 텐데
+                            // 첫번째 Param은 6개짜리, 두번째 Param은 5개짜리가 되버린다.
+}
+------------------------------------------------------------------
