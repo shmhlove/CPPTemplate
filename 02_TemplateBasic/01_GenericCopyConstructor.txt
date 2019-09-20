@@ -1,0 +1,168 @@
+------------------------------------------------------------------
+00 : 클래스 템플릿
+------------------------------------------------------------------
+
+- 클래스 템플릿의 암시적 타입 추론
+
+template<typename T> class Complex
+{
+    T re, im;
+public:
+    // success, this->T의 형태로 Complex<T>로 해석되므로 성공함.
+    void foo(Complex c)
+    {
+        // success, this->T의 형태로 Complex<T>로 해석되므로 성공함.
+        Complex c2;
+    }
+};
+
+// Complex는 클래스가 아니라 템플릿
+// 즉, 코드로 생성되지 않은 상태이므로 없는 클래스이다.
+void foo(Complex c)
+{
+
+}
+
+int main()
+{
+    Complex      c1; // error, T의 데이터형 정의필요, 생성자 Deduction을 활용하면 가능
+    Complex<int> c2; // success, T : int    
+}
+
+------------------------------------------------------------------
+
+- 클래스 템플릿의 디폴트 초기화
+- 클래스 템플릿의 멤버함수를 외부구현 형태
+- 클래스 템플릿의 static 멤버의 외부선언 형태
+- 클래스 템플릿의 멤버함수템플릿 외부구현 형태
+
+template<typename T> class Complex
+{
+    T re, im;
+public:
+    // 템플릿의 디폴트 초기화
+    // c++ 98/03
+    Complex(T a = T(), T b = T()) : re(a), im(b) {}
+    // c++ 11
+    // Complex(T a = {}, T b = {}) : re(a), im(b) {}
+    
+    T getReal() const;
+    
+    static int cnt;
+    
+    template<typename U> T func(const U& c);
+};
+
+// 멤버함수를 외부구현 형태
+template<typename T>
+T Complex<T>::getReal() const
+{
+    return re;
+}
+
+// static 멤버의 외부선언 형태
+template<typename T>
+int Complex<T>::cnt = 0;
+
+// 클래스 템플릿의 멤버함수 템플릿 외부구현 형태
+template<typename T> template<typename U>
+T Complex<T>::func(const U& c)
+{
+    return re;
+}
+
+int main()
+{
+
+}
+
+------------------------------------------------------------------
+
+- 복사 생성자
+
+template<typename T> class Complex
+{
+    T re, im;
+public:
+    Complex(T a = T(), T b = T()) : re(a), im(b) { }
+    // 디폴트 복사 생성자
+    // Complex(const Complex<T>& c) { }
+    
+    // 복사 생성자 특수화
+    // Complex(const Complex<int>& c) { }
+    
+    // 복사 생성자 일반화
+    template<typename U>
+    Complex(const Complex<U>& c) { }
+};
+
+int main()
+{
+    Complex<int> c1(1, 1);
+    Complex<int> c2 = c1;       // ok, 디폴트 복사생성자
+    Complex<double> c3 = c1;    // error, 다른클래스임. 복사생성자 특수화 혹은 일반화 필요
+}
+
+------------------------------------------------------------------
+02. 복사 생성자 외부구현
+------------------------------------------------------------------
+
+template<typename T> class Complex
+{
+    T re, im;
+public:
+    Complex(T a = T(), T b = T()) : re(a), im(b) { }
+    // 디폴트 복사 생성자
+    // Complex(const Complex<T>& c) { }
+    
+    // 복사 생성자 특수화
+    // Complex(const Complex<int>& c) { }
+    
+    // 복사 생성자 일반화
+    template<typename U>
+    Complex(const Complex<U>& c);
+    
+    // 대입 연산자도 같음
+    
+    // 모든 타입의 Complex 클래스에 private 멤버로 접근할 수 있도록 friend 선언
+    template<typename> friend class Complex;
+};
+
+template<typename T> template<typename U>
+Complex<T>::Complex(const Complex<U>& c) : re(c.re), im(c.im)
+{
+
+}
+
+int main()
+{
+    Complex<int> c1(1, 1);
+    Complex<int> c2 = c1;       // ok, 디폴트 복사생성자
+    Complex<double> c3 = c1;    // error, 다른클래스임. 복사생성자 특수화 혹은 일반화 필요
+}
+
+------------------------------------------------------------------
+03. 클래스 템플릿 복사 생성자의 예제로 스마트포인터를 알아보자
+------------------------------------------------------------------
+
+// shared_ptr은 복사생성자 대입연산자 비교연산자에 대해 모두 구현하고 있다.
+
+#include <memory>
+using namespace std;
+
+class Animal {};
+class Dog : public Animal{};
+
+int main()
+{
+    shared_ptr<Dog> p1(new Dog);
+    shared_ptr<Dog> p2 = p1;
+    shared_ptr<Animal> p3 = p1;
+    
+    p2 = p1;
+    
+    if (p2 == p1) {}
+    if (p2 != p1) {}
+}
+
+------------------------------------------------------------------

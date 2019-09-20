@@ -12,6 +12,7 @@ template<typename T> void foo(const T a)
     cout << "standard a : " << typeid(a).name() << endl;
     
     // boost::type_index를 활용하면 정확한 타입을 조사할 수 있다.
+    // cvr : const, volatile, reference 약자
     cout << "boost T : " << type_id_with_cvr<T>().pretty_name() << endl;
     cout << "boost a : " << type_id_with_cvr<decltype(a)>().pretty_name() << endl;
 }

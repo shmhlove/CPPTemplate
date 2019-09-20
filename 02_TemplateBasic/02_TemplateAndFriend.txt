@@ -1,0 +1,76 @@
+------------------------------------------------------------------
+00 : Friend의 필요성
+------------------------------------------------------------------
+
+- 아래코드는 링커에러발생
+
+#include <iostream>
+using namespace std;
+
+template<typename T> class Point
+{
+    T x, y;
+public:
+    Point(T a = T(), T b = T()) : x(a), y(b) {}
+    
+    // 여기서 사용된 T는 함수템플릿의 T가 아니라 클래스템플릿의 T이다.
+    // 즉, 템플릿코드가 생성되고나면 선언만 있고, 정의가 없게 되어 링커에러가 발생한다.
+    friend ostream& operator<<(ostream& os, const Point<T>& p);
+};
+
+template<typename T>
+ostream& operator<<(ostream& os, const Point<T>& p)
+{
+    return os << p.x << ", " << p.y;
+}
+
+int main()
+{
+    Point<int> p(1, 2);
+    
+    cout << p << endl;
+}
+
+------------------------------------------------------------------
+
+- 위 코드에서 링커에러가 발생하는 이유
+
+#include <iostream>
+using namespace std;
+
+template<typename T> void foo(T a)
+{
+    cout << "T" << endl;
+}
+
+void foo(int a)
+{
+    cout << "a" << endl;
+}
+
+int main()
+{
+    // exactly matching
+    // a출력 >> template보다는 직접 구현된 함수의 우선순위가 높다.
+    foo(3);
+}
+
+------------------------------------------------------------------
+
+#include <iostream>
+using namespace std;
+
+template<typename T> void foo(T a)
+{
+    cout << "T" << endl;
+}
+
+// error, LINK
+void foo(int a);
+
+int main()
+{
+    foo(3);
+}
+
+------------------------------------------------------------------
